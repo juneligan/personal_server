@@ -1,5 +1,9 @@
 import logger from './logger';
 import app from './app';
+import dotenv from "dotenv";
+
+// initialize configuration
+dotenv.config();
 
 const port = app.get('port');
 const server = app.listen(port);

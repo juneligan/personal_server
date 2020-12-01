@@ -28,5 +28,5 @@
       "passwordField": "password"
     }
   },
-  "mongodb": "MONGOOSE_URL"
+  "mongodb": "DATABASE_URL"
 }
