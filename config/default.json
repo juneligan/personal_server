@@ -28,5 +28,8 @@
       "passwordField": "password"
     }
   },
-  "mongodb": "DATABASE_URL"
+  "mongodb": "DATABASE_URL",
+  "google_sheet_client_email": "GOOGLE_SHEET_CLIENT_EMAIL",
+  "google_sheet_private_key": "GOOGLE_SHEET_PRIVATE_KEY",
+  "google_sheet_id": "SPREADSHEET_ID"
 }
