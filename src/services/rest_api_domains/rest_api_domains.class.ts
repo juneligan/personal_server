@@ -30,8 +30,6 @@ export class RestApiDomains implements ServiceMethods<Data> {
 
     const sheet = doc.sheetsByTitle[userEmail]; // or use doc.sheetsById[id] or doc.sheetsByTitle[title]
 
-    console.log(sheet.title);
-    console.log(sheet.rowCount);
     const rows = await sheet.getRows({ limit: 100, offset:0 });
     return this._collectData(header, rows);
   }
@@ -46,19 +44,30 @@ export class RestApiDomains implements ServiceMethods<Data> {
 
     const header = request.table;
     const userEmail = params.user.email;
+    const intId = parseInt(id.toString());
 
     const doc = await this._getGoogleSheet();
 
     const existingSheet = doc.sheetsByTitle[userEmail];
     const sheet = await this._createInitialDetails(doc, userEmail, header, existingSheet);
+    const rows = await sheet.getRows();
+    if (rows.length === 0) {
+      return {};
+    }
 
-    // rows[0][header.toString()].get
+    const row = rows[intId];
+    if (row === undefined) {
+      return {};
+    }
 
-    const formatted = parseInt(id.toString());
-    // const test = await rows[formatted][header];
+    const data = row[header];
+    if (this._isNull(data)) {
+      return {};
+    }
 
     return {
-      id, text: `A new message with ID: ${id}!`
+      internalId: id,
+      ...JSON.parse(data)
     };
   }
 
@@ -81,14 +90,11 @@ export class RestApiDomains implements ServiceMethods<Data> {
     const rows = await sheet.getRows();
     const headers = sheet.headerValues;
 
-    const isHeaderExist = headers.find((e: string) => e === header);
-
+    const isHeaderExist = sheet.headerValues.find((e: string) => e === header);
     if (!isHeaderExist) {
       await sheet.setHeaderRow([...headers, header]);
     }
-    await this._addData(model, rows, sheet);
-
-    return data;
+    return await this._addData(model, rows, sheet);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -103,7 +109,45 @@ export class RestApiDomains implements ServiceMethods<Data> {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async remove (id: NullableId, params?: Params): Promise<Data> {
-    return { id };
+    if (!id || id < 0 || !params || !params.user || !params.query ) {
+      return {};
+    }
+
+    const request = new RestApiDomainRequestDto(params.query);
+
+    const header = request.table;
+    const userEmail = params.user.email;
+    const intId = id ? parseInt(id.toString()): -1;
+
+    const doc = await this._getGoogleSheet();
+
+    const existingSheet = doc.sheetsByTitle[userEmail];
+    const sheet = await this._createInitialDetails(doc, userEmail, header, existingSheet);
+    const rows = await sheet.getRows();
+    // TODO to consider, currently, there's no batch update
+    // if (rows.length === 0 && !id) {
+    //   return [];
+    // } else if (!id) {
+    //   return this._removeAll(header, rows, sheet);
+    // } else
+    if (rows.length === 0) {
+      return {};
+    }
+
+    const row = rows[intId];
+    if (row === undefined) {
+      return {};
+    }
+
+    if (this._isNull(row[header])) {
+      return {};
+    }
+
+    row[header] = 'null';
+    await rows[intId].save();
+    return {
+      internalId: intId
+    };
   }
 
   async _getGoogleSheet() {
@@ -129,32 +173,60 @@ export class RestApiDomains implements ServiceMethods<Data> {
 
   async _addData(model: RestApiDomainsModel, rows: Array<GoogleSpreadsheetRow>, sheet: GoogleSpreadsheetWorksheet) {
     const header = model.header;
-
-
-    let loopBroke = false;
-    let index = 1;
+    let index = 0;
     for (let row of rows) {
-      if (row[header] === undefined || row[header] === null || row[header] === '') {
-        row[header] =  JSON.stringify(model.rowData);
+      if (this._isNull(row[header])) {
+        row[header] = JSON.stringify(model.rowData);
         await row.save();
-        loopBroke = true;
-        break;
+        return {
+          internalId: index,
+          ...model.rowData
+        };
       }
       index += 1;
     }
-    if (!loopBroke) {
-      await sheet.addRow(model.getJsonFormat())
+
+    await sheet.addRow(model.getJsonFormat())
+    return {
+      internalId: index,
+      ...model.rowData
     }
   }
 
   async _collectData(header: string, rows: Array<GoogleSpreadsheetRow>): Promise<Data[]> {
     const list: Data[] = [];
+    let index = 0;
     for (let row of rows) {
-      if (row[header] === undefined || row[header] === null || row[header] === '') {
-        break;
+      if (!this._isNull(row[header])) {
+        list.push({
+          internalId: index,
+          ...JSON.parse(row[header]),
+        });
       }
-      list.push(JSON.parse(row[header]));
+      index += 1;
     }
     return list;
+  }
+
+  // TODO to consider
+  async _removeAll(header: string, rows: Array<GoogleSpreadsheetRow>, sheet: GoogleSpreadsheetWorksheet) {
+    const list: Data[] = [];
+    let index = 0;
+    for (let row of rows) {
+      if (this._isNull(row[header])) {
+        break;
+      }
+      row[header] = 'null';
+      await row.save();
+      list.push({
+        internalId: index,
+      });
+      index += 1;
+    }
+    return list;
+  }
+
+  _isNull(data: any) {
+    return data === undefined || data === null || data === '' || data === 'null';
   }
 }
