@@ -130,13 +130,17 @@ export class RestApiDomains implements ServiceMethods<Data> {
   async _addData(model: RestApiDomainsModel, rows: Array<GoogleSpreadsheetRow>, sheet: GoogleSpreadsheetWorksheet) {
     const header = model.header;
 
+
     let loopBroke = false;
+    let index = 1;
     for (let row of rows) {
       if (row[header] === undefined || row[header] === null || row[header] === '') {
         row[header] =  JSON.stringify(model.rowData);
         await row.save();
         loopBroke = true;
+        break;
       }
+      index += 1;
     }
     if (!loopBroke) {
       await sheet.addRow(model.getJsonFormat())
