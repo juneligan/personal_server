@@ -99,7 +99,40 @@ export class RestApiDomains implements ServiceMethods<Data> {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async update (id: NullableId, data: Data, params?: Params): Promise<Data> {
-    return data;
+    if (!id || id < 0 || !params || !params.user || !params.query ) {
+      return {};
+    }
+
+    const request = new RestApiDomainRequestDto(params.query);
+
+    const header = request.table;
+    const userEmail = params.user.email;
+    const intId = id ? parseInt(id.toString()): -1;
+
+    const doc = await this._getGoogleSheet();
+
+    const existingSheet = doc.sheetsByTitle[userEmail];
+    const sheet = await this._createInitialDetails(doc, userEmail, header, existingSheet);
+    const rows = await sheet.getRows();
+    if (rows.length === 0) {
+      return {};
+    }
+
+    const row = rows[intId];
+    if (row === undefined) {
+      return {};
+    }
+
+    if (this._isNull(row[header])) {
+      return {};
+    }
+
+    row[header] = JSON.stringify(data);
+
+    await rows[intId].save();
+    return {
+      internalId: intId
+    };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
