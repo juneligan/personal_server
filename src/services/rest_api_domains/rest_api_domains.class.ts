@@ -87,13 +87,7 @@ export class RestApiDomains implements ServiceMethods<Data> {
 
     const existingSheet = doc.sheetsByTitle[userEmail];
     const sheet = await this._createInitialDetails(doc, userEmail, header, existingSheet);
-    const rows = await sheet.getRows();
-    const headers = sheet.headerValues;
-
-    const isHeaderExist = sheet.headerValues.find((e: string) => e === header);
-    if (!isHeaderExist) {
-      await sheet.setHeaderRow([...headers, header]);
-    }
+    const rows = await this._initializeHeaderThenGetRows(header, sheet);
     return await this._addData(model, rows, sheet);
   }
 
@@ -202,6 +196,19 @@ export class RestApiDomains implements ServiceMethods<Data> {
       return await doc.addSheet({ title: title.toString(), headerValues: [header.toString()] });
     }
     return sheet;
+  }
+
+  async _initializeHeaderThenGetRows(header: string, sheet: GoogleSpreadsheetWorksheet) {
+    const rows = await sheet.getRows();
+    const headers = sheet.headerValues;
+
+    const isHeaderExist = sheet.headerValues.find((e: string) => e === header);
+    if (!isHeaderExist) {
+      await sheet.setHeaderRow([...headers, header]);
+      return await sheet.getRows();
+    }
+
+    return rows;
   }
 
   async _addData(model: RestApiDomainsModel, rows: Array<GoogleSpreadsheetRow>, sheet: GoogleSpreadsheetWorksheet) {
